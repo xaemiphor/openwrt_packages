@@ -1,0 +1,118 @@
+on:
+  push:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cpu:
+          - ath79-generic
+          - bcm27xx-bcm2708
+          - mvebu-cortexa9
+          - ramips-mt7621
+          - x86-64
+        version:
+          - 23.05.3
+    steps:
+      - name: vars
+        id: vars
+        env:
+          CPU: ${{ matrix.cpu }}
+          OPENWRT_VERSION: ${{ matrix.version }}
+        shell: bash
+        run: |
+          SDK_FILENAME=$(curl -s https://downloads.openwrt.org/releases/${{ env.OPENWRT_VERSION }}/targets/${CPU/-/\/}/ | awk '/-sdk-${{ env.OPENWRT_VERSION }}/' | sed -r 's/.*href="([^"]+).*/\1/g' )
+          echo "SDK_URL=https://downloads.openwrt.org/releases/${{ env.OPENWRT_VERSION }}/targets/${CPU/-/\/}/${SDK_FILENAME}" | tee -a "${GITHUB_OUTPUT}"
+          echo "SDK_PACKAGE_NAME=${SDK_FILENAME}" | tee -a "${GITHUB_OUTPUT}"
+          echo "FEED_URL=https://github.com/openwrt/packages/archive/refs/heads/openwrt-${OPENWRT_VERSION%.*}.zip" | tee -a "${GITHUB_OUTPUT}"
+          echo "FEED_FILENAME=openwrt-${OPENWRT_VERSION%.*}.zip" | tee -a "${GITHUB_OUTPUT}"
+
+      - name: Cache SDK
+        id: cache-sdk
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.vars.outputs.SDK_PACKAGE_NAME }}
+          key: ${{ steps.vars.outputs.SDK_PACKAGE_NAME }}
+
+      - name: Grab uncached resources
+        env:
+          SDK_URL: ${{ steps.vars.outputs.SDK_URL }}
+          SDK_PACKAGE_NAME: ${{ steps.vars.outputs.SDK_PACKAGE_NAME }}
+        shell: bash
+        run: |
+          if [[ "${{ steps.cache-sdk.outputs.cache-hit }}" != "true" ]]; then
+            echo "Downloading ${SDK_URL} to ${SDK_PACKAGE_NAME}"
+            wget -q -c "${SDK_URL}" -O "${SDK_PACKAGE_NAME}"
+          fi
+
+      - name: Prepare SDK
+        env:
+          SDK_PACKAGE_NAME: ${{ steps.vars.outputs.SDK_PACKAGE_NAME }}
+          SDK_TMP: "${{ github.workspace }}/sdk"
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rsync
+          set -x
+          mkdir ${SDK_TMP}
+          cd ${SDK_TMP}
+          file "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}"
+          tar --strip-components=1 -Jxf "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}" "${SDK_PACKAGE_NAME%.*.*}/"
+          git clone --depth 1 https://github.com/kuoruan/openwrt-upx.git package/openwrt-upx
+
+      - name: Cache feed
+        id: cache-feed
+        uses: actions/cache@v4
+        with:
+          path: "${{ github.workspace }}/sdk/feeds/packages"
+          key: "${{ steps.vars.outputs.SDK_PACKAGE_NAME }}-feeds-packages"
+
+      - name: Prep upstream feeds
+        env:
+          SDK_TMP: "${{ github.workspace }}/sdk"
+          ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
+        shell: bash
+        run: |
+          if [[ ! -d "${ARTIFACT_DIR}" ]]; then
+            mkdir -p "${ARTIFACT_DIR}"
+          fi
+          cd "${SDK_TMP}"
+          if [[ "${{ steps.cache-feed.outputs.cache-hit }}" != "true" ]]; then
+            echo "::group::Updating packages"
+            ./scripts/feeds update packages
+            echo "::endgroup::"
+          fi
+
+      - name: Prep own feed
+        if: false
+        env:
+          SDK_TMP: "${{ github.workspace }}/sdk"
+          ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
+        shell: bash
+        run: |
+          echo "src-git ${{ github.repository_owner }} ${{ github.repositoryUrl }}" | sed 's#git://#https://#g' >> feeds.conf.default
+          echo "::group::Updating own feed"
+          ./scripts/feeds update ${{ github.repository_owner }}
+          echo "::endgroup::"
+
+
+      - name: Build packages
+        if: false
+        env:
+          SDK_TMP: "${{ github.workspace }}/sdk"
+          ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
+        shell: bash
+        run: |
+          set -x
+          cd "${SDK_TMP}"
+          make defconfig
+          ./scripts/feeds install -a ${{ github.repository_owner }}
+          #make package/${{matrix.package}}/compile V=s
+          echo "::group:: /bin"
+          find "${SDK_TMP}/bin/"
+          echo "::endgroup::"
+          echo "::group:: /bin/packages"
+          find "${SDK_TMP}/bin/packages" -name *.ipk -exec cp -n {} ${ARTIFACT_DIR} \;
+          echo "::endgroup::"
