@@ -53,15 +53,17 @@ jobs:
           SDK_TMP: "${{ github.workspace }}/sdk"
         shell: bash
         run: |
+          echo "::group:: Update/install packages"
           sudo apt-get update
           sudo apt-get install -y rsync
+          echo "::endgroup::"
           set -x
           mkdir ${SDK_TMP}
           cd ${SDK_TMP}
           file "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}"
           tar --strip-components=1 -Jxf "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}" "${SDK_PACKAGE_NAME%.*.*}/"
           #git clone --depth 1 https://github.com/kuoruan/openwrt-upx.git package/openwrt-upx
-          echo "src-git openwrt-upx https://github.com/kuoruan/openwrt-upx.git" >> feeds.conf.default
+          echo "src-git openwrt_upx https://github.com/kuoruan/openwrt-upx.git" >> feeds.conf.default
 
       - name: Cache feed - base
         id: cache-feed-base
@@ -94,7 +96,7 @@ jobs:
           path: "${{ github.workspace }}/sdk/feeds/telephony"
           key: "${{ steps.vars.outputs.SDK_PACKAGE_NAME }}-feeds-telephony"
 
-      - name: Prep upstream feeds
+      - name: Prep feeds
         env:
           SDK_TMP: "${{ github.workspace }}/sdk"
           ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
@@ -104,42 +106,10 @@ jobs:
             mkdir -p "${ARTIFACT_DIR}"
           fi
           cd "${SDK_TMP}"
-          if [[ "${{ steps.cache-feed-base.outputs.cache-hit }}" != "true" ]]; then
-            echo "::group::Updating base"
-            ./scripts/feeds update base
-            echo "::endgroup::"
-          fi
-          if [[ "${{ steps.cache-feed-packages.outputs.cache-hit }}" != "true" ]]; then
-            echo "::group::Updating packages"
-            ./scripts/feeds update packages
-            echo "::endgroup::"
-          fi
-          if [[ "${{ steps.cache-feed-luci.outputs.cache-hit }}" != "true" ]]; then
-            echo "::group::Updating luci"
-            ./scripts/feeds update luci
-            echo "::endgroup::"
-          fi
-          if [[ "${{ steps.cache-feed-routing.outputs.cache-hit }}" != "true" ]]; then
-            echo "::group::Updating routing"
-            ./scripts/feeds update routing
-            echo "::endgroup::"
-          fi
-          if [[ "${{ steps.cache-feed-telephony.outputs.cache-hit }}" != "true" ]]; then
-            echo "::group::Updating telephony"
-            ./scripts/feeds update telephony
-            echo "::endgroup::"
-          fi
-
-      - name: Prep own feed
-        if: true
-        env:
-          SDK_TMP: "${{ github.workspace }}/sdk"
-          ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
-        shell: bash
-        run: |
-          set -x
-          cd "${SDK_TMP}"
           echo "src-git ${{ github.repository_owner }} ${{ github.repositoryUrl }}" | sed 's#git://#https://#g' >> feeds.conf.default
+          echo "::group::feeds.conf.default"
+          cat feeds.conf.default
+          echo "::endgroup::"
           for x in $(awk '{print $2}' feeds.conf.default); do
             if [[ ! -d "${SDK_TMP}/feeds/${x}" ]]; then
               echo "::group::Updating feed - ${x}"
