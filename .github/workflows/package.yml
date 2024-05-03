@@ -103,11 +103,12 @@ jobs:
           ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
         shell: bash
         run: |
+          set -x
+          cd "${SDK_TMP}"
           echo "src-git ${{ github.repository_owner }} ${{ github.repositoryUrl }}" | sed 's#git://#https://#g' >> feeds.conf.default
           echo "::group::Updating own feed"
           ./scripts/feeds update ${{ github.repository_owner }}
           echo "::endgroup::"
-
 
       - name: Build packages
         if: true
@@ -121,6 +122,9 @@ jobs:
           make defconfig
           ./scripts/feeds install -a ${{ github.repository_owner }}
           #make package/${{matrix.package}}/compile V=s
+          echo "::group:: /"
+          find "${SDK_TMP}/"
+          echo "::endgroup::"
           echo "::group:: /bin"
           find "${SDK_TMP}/bin/"
           echo "::endgroup::"
