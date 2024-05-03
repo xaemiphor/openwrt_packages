@@ -60,7 +60,8 @@ jobs:
           cd ${SDK_TMP}
           file "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}"
           tar --strip-components=1 -Jxf "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}" "${SDK_PACKAGE_NAME%.*.*}/"
-          git clone --depth 1 https://github.com/kuoruan/openwrt-upx.git package/openwrt-upx
+          #git clone --depth 1 https://github.com/kuoruan/openwrt-upx.git package/openwrt-upx
+          echo "src-git openwrt-upx https://github.com/kuoruan/openwrt-upx.git" >> feeds.conf.default
 
       - name: Cache feed - base
         id: cache-feed-base
@@ -74,6 +75,24 @@ jobs:
         with:
           path: "${{ github.workspace }}/sdk/feeds/packages"
           key: "${{ steps.vars.outputs.SDK_PACKAGE_NAME }}-feeds-packages"
+      - name: Cache feed - luci
+        id: cache-feed-luci
+        uses: actions/cache@v4
+        with:
+          path: "${{ github.workspace }}/sdk/feeds/luci"
+          key: "${{ steps.vars.outputs.SDK_PACKAGE_NAME }}-feeds-luci"
+      - name: Cache feed - routing
+        id: cache-feed-routing
+        uses: actions/cache@v4
+        with:
+          path: "${{ github.workspace }}/sdk/feeds/routing"
+          key: "${{ steps.vars.outputs.SDK_PACKAGE_NAME }}-feeds-routing"
+      - name: Cache feed - telephony
+        id: cache-feed-telephony
+        uses: actions/cache@v4
+        with:
+          path: "${{ github.workspace }}/sdk/feeds/telephony"
+          key: "${{ steps.vars.outputs.SDK_PACKAGE_NAME }}-feeds-telephony"
 
       - name: Prep upstream feeds
         env:
@@ -95,6 +114,21 @@ jobs:
             ./scripts/feeds update packages
             echo "::endgroup::"
           fi
+          if [[ "${{ steps.cache-feed-luci.outputs.cache-hit }}" != "true" ]]; then
+            echo "::group::Updating luci"
+            ./scripts/feeds update luci
+            echo "::endgroup::"
+          fi
+          if [[ "${{ steps.cache-feed-routing.outputs.cache-hit }}" != "true" ]]; then
+            echo "::group::Updating routing"
+            ./scripts/feeds update routing
+            echo "::endgroup::"
+          fi
+          if [[ "${{ steps.cache-feed-telephony.outputs.cache-hit }}" != "true" ]]; then
+            echo "::group::Updating telephony"
+            ./scripts/feeds update telephony
+            echo "::endgroup::"
+          fi
 
       - name: Prep own feed
         if: true
@@ -106,9 +140,13 @@ jobs:
           set -x
           cd "${SDK_TMP}"
           echo "src-git ${{ github.repository_owner }} ${{ github.repositoryUrl }}" | sed 's#git://#https://#g' >> feeds.conf.default
-          echo "::group::Updating own feed"
-          ./scripts/feeds update ${{ github.repository_owner }}
-          echo "::endgroup::"
+          for x in $(awk '{print $2}' feeds.conf.default); do
+            if [[ ! -d "${SDK_TMP}/feeds/${x}" ]]; then
+              echo "::group::Updating feed - ${x}"
+              ./scripts/feeds update ${x}
+              echo "::endgroup::"
+            fi
+          done
 
       - name: Build packages
         if: true
@@ -120,7 +158,7 @@ jobs:
           set -x
           cd "${SDK_TMP}"
           make defconfig
-          ./scripts/feeds install -a ${{ github.repository_owner }}
+          ./scripts/feeds install -a -p ${{ github.repository_owner }}
           #make package/${{matrix.package}}/compile V=s
           echo "::group:: /"
           find "${SDK_TMP}/"
