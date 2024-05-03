@@ -127,15 +127,27 @@ jobs:
         run: |
           set -x
           cd "${SDK_TMP}"
+          echo "::group::make defconfig"
           make defconfig
+          echo "::endgroup::"
+          echo "::group::Install feed ${{ github.repository_owner }}"
           ./scripts/feeds install -a -p ${{ github.repository_owner }}
-          #make package/${{matrix.package}}/compile V=s
+          echo "::endgroup::"
+          echo "::group::Package List?"
+          find package/feeds/${{ github.repository_owner }} -mindepth 1 -maxdepth 1 -type d -follow
+          echo "::endgroup::"
+          for x in $(find package/feeds/${{ github.repository_owner }} -mindepth 1 -maxdepth 1 -type d -follow); do
+            #make package/${{matrix.package}}/compile V=s
+            echo "::group:: Compiling ${x}"
+            make ${x}/compile V=s
+            echo "::endgroup::"
+          done
           echo "::group:: /"
           find "${SDK_TMP}/"
           echo "::endgroup::"
-          echo "::group:: /bin"
-          find "${SDK_TMP}/bin/"
-          echo "::endgroup::"
-          echo "::group:: /bin/packages"
-          find "${SDK_TMP}/bin/packages" -name *.ipk -exec cp -n {} ${ARTIFACT_DIR} \;
-          echo "::endgroup::"
+          #echo "::group:: /bin"
+          #find "${SDK_TMP}/bin/"
+          #echo "::endgroup::"
+          #echo "::group:: /bin/packages"
+          #find "${SDK_TMP}/bin/packages" -name *.ipk -exec cp -n {} ${ARTIFACT_DIR} \;
+          #echo "::endgroup::"
