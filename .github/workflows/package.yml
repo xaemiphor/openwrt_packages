@@ -197,6 +197,15 @@ jobs:
           pattern: ${{ matrix.version }}-*
           merge-multiple: true
 
+      - name: Download all existing release assets
+        uses: robinraju/release-downloader@v1.10
+        with:
+          tag: ${{ matrix.version }}
+          fileName: '*.ipk'
+          tarBall: false
+          zipBall: false
+          out-file-path: packages
+
       - name: Generate repository meta
         shell: bash
         run: |
@@ -204,6 +213,8 @@ jobs:
           cd packages
           echo "::group::Generate index"
           ${GITHUB_WORKSPACE}/opkg-utils/opkg-make-index . | awk '!/Lost field/' > "Packages"
+          gzip --keep Packages
+          rm Packages.stamps
           echo "::endgroup::"
           cd ${GITHUB_WORKSPACE}
           rm -R "${GITHUB_WORKSPACE}/opkg-utils"
