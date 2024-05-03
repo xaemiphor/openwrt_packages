@@ -168,7 +168,6 @@ jobs:
     needs: package
     permissions:
       contents: write
-      workflows: write
     strategy:
       fail-fast: false
       matrix:
