@@ -156,3 +156,36 @@ jobs:
           name: ${{ matrix.version }}-${{ matrix.cpu }}
           path: "${{ github.workspace }}/artifacts"
           retention-days: 1
+
+  release:
+    runs-on: ubuntu-latest
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - 23.05.3
+    steps:
+      - name: Download all workflow run artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: packages
+          pattern: ${{ matrix.version }}-*
+          merge-multiple: true
+
+      - name: Generate repository meta
+        shell: bash
+        run: |
+          git clone --depth 1 git://git.yoctoproject.org/opkg-utils ${GITHUB_WORKSPACE}/opkg-utils
+          cd packages
+          echo "::group::Generate index"
+          ${GITHUB_WORKSPACE}/opkg-utils/opkg-make-index . | awk '!/Lost field/' > "Packages"
+          echo "::endgroup::"
+          cd ${GITHUB_WORKSPACE}
+          rm -R "${GITHUB_WORKSPACE}/opkg-utils"
+          echo "::group::Packages"
+          cat packages/Packages
+          echo "::endgroup::"
+          echo "::group::find"
+          find .
+          echo "::endgroup::"
