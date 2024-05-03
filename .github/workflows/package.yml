@@ -97,7 +97,7 @@ jobs:
           fi
 
       - name: Prep own feed
-        if: false
+        if: true
         env:
           SDK_TMP: "${{ github.workspace }}/sdk"
           ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
