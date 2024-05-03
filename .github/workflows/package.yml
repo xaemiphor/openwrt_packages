@@ -18,8 +18,6 @@ jobs:
           - x86-64
         version:
           - 23.05.3
-          - 22.03.6
-          - 21.02.7
     steps:
       - name: Install golang
         uses: actions/setup-go@v5
@@ -172,8 +170,6 @@ jobs:
       matrix:
         version:
           - 23.05.3
-          - 22.03.6
-          - 21.02.7
     steps:
       - name: Create tag
         uses: actions/github-script@v7
