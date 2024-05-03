@@ -199,6 +199,7 @@ jobs:
           merge-multiple: true
 
       - name: Download all existing release assets
+        if: false
         uses: robinraju/release-downloader@v1.10
         with:
           tag: ${{ matrix.version }}
@@ -222,9 +223,7 @@ jobs:
           echo "::group::Packages"
           cat packages/Packages
           echo "::endgroup::"
-          echo "::group::find"
-          find .
-          echo "::endgroup::"
+          # TODO Remove stale ipks? TBD
 
       - name: Release
         uses: softprops/action-gh-release@v2
