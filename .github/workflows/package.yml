@@ -16,6 +16,11 @@ jobs:
         version:
           - 23.05.3
     steps:
+      - name: Install golang
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
       - name: vars
         id: vars
         env:
@@ -57,7 +62,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y rsync
           echo "::endgroup::"
-          set -x
+          #set -x
           mkdir ${SDK_TMP}
           cd ${SDK_TMP}
           file "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}"
@@ -125,7 +130,7 @@ jobs:
           ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
         shell: bash
         run: |
-          set -x
+          #set -x
           cd "${SDK_TMP}"
           echo "::group::make defconfig"
           make defconfig
