@@ -1,6 +1,9 @@
 on:
   push:
 
+permissions:
+  contents: write
+
 jobs:
   package:
     runs-on: ubuntu-latest
@@ -67,8 +70,7 @@ jobs:
           cd ${SDK_TMP}
           file "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}"
           tar --strip-components=1 -Jxf "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}" "${SDK_PACKAGE_NAME%.*.*}/"
-          #git clone --depth 1 https://github.com/kuoruan/openwrt-upx.git package/openwrt-upx
-          echo "src-git openwrt_upx https://github.com/kuoruan/openwrt-upx.git" >> feeds.conf.default
+          echo "src-git kuoruan https://github.com/kuoruan/openwrt-upx.git" >> feeds.conf.default
 
       - name: Cache feed - base
         id: cache-feed-base
@@ -166,6 +168,16 @@ jobs:
         version:
           - 23.05.3
     steps:
+      - name: Create tag
+        uses: actions/github-script@v5
+        with:
+          script: |
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/${{ matrix.version }}',
+              sha: context.sha
+            })
       - name: Download all workflow run artifacts
         uses: actions/download-artifact@v4
         with:
@@ -189,3 +201,9 @@ jobs:
           echo "::group::find"
           find .
           echo "::endgroup::"
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ matrix.version }}
+          files: packages/*
