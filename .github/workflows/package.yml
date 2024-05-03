@@ -62,8 +62,14 @@ jobs:
           tar --strip-components=1 -Jxf "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}" "${SDK_PACKAGE_NAME%.*.*}/"
           git clone --depth 1 https://github.com/kuoruan/openwrt-upx.git package/openwrt-upx
 
-      - name: Cache feed
-        id: cache-feed
+      - name: Cache feed - base
+        id: cache-feed-base
+        uses: actions/cache@v4
+        with:
+          path: "${{ github.workspace }}/sdk/feeds/base"
+          key: "${{ steps.vars.outputs.SDK_PACKAGE_NAME }}-feeds-base"
+      - name: Cache feed - packages
+        id: cache-feed-packages
         uses: actions/cache@v4
         with:
           path: "${{ github.workspace }}/sdk/feeds/packages"
@@ -79,7 +85,12 @@ jobs:
             mkdir -p "${ARTIFACT_DIR}"
           fi
           cd "${SDK_TMP}"
-          if [[ "${{ steps.cache-feed.outputs.cache-hit }}" != "true" ]]; then
+          if [[ "${{ steps.cache-feed-base.outputs.cache-hit }}" != "true" ]]; then
+            echo "::group::Updating base"
+            ./scripts/feeds update base
+            echo "::endgroup::"
+          fi
+          if [[ "${{ steps.cache-feed-packages.outputs.cache-hit }}" != "true" ]]; then
             echo "::group::Updating packages"
             ./scripts/feeds update packages
             echo "::endgroup::"
