@@ -1,0 +1,64 @@
+on:
+  schedule:
+    - cron: "0 0 * * 4"
+  push:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # TODO Extract this from Makefiles
+          - package: net/tailscale
+            gh_repo: tailscale/tailscale
+          - package: net/netbird
+            gh_repo: netbirdio/netbird
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v4
+
+      - name: Set variables
+        id: vars
+        shell: bash
+        run: |
+          echo "::group::Dep install"
+          for x in 'curl' 'jq'; do
+            if [[ -z "$(which ${x})" ]]; then
+              apt-get update
+              apt-get install -y ${x}
+            fi
+          done
+          echo "::endgroup::"
+          PKG_VERSION=$(awk -F '[:=]' '/^PKG_VERSION/{print $NF}' "${{ matrix.package }}/Makefile")
+          echo "PKG_VERSION=${PKG_VERSION}" | tee -a "${GITHUB_OUTPUT}"
+          if [[ -n "${{ matrix.gh_repo }}" ]]; then
+            GH_VERSION=$(curl -s "https://api.github.com/repos/${{ matrix.gh_repo }}/releases/latest" | jq -c --raw-output '.tag_name' | tr -d 'v')
+            echo "GH_VERSION=${GH_VERSION}" | tee -a "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Update version
+        if: steps.vars.outputs.PKG_VERSION != steps.vars.outputs.GH_VERSION
+        shell: bash
+        run: |
+          echo "::group::Grabbing payload"
+          wget https://codeload.github.com/${{ matrix.gh_repo }}/tar.gz/v${{ steps.vars.outputs.GH_VERSION }} -O temp.tar.gz
+          echo "::endgroup::"
+          echo "::group::Updating Makefile"
+          PKG_HASH=$(sha256sum temp.tar.gz | awk '{print $1}')
+          sed -i 's/^PKG_VERSION:=.*/PKG_VERSION:=${{ steps.vars.outputs.GH_VERSION }}/g' "${{ matrix.package }}/Makefile"
+          sed -i "s/^PKG_HASH:=.*/PKG_HASH:=${PKG_HASH}/g" "${{ matrix.package }}/Makefile"
+          echo "::endgroup::"
+          echo "::group::Makefile contents ${{ matrix.package }}"
+          cat "${{ matrix.package }}/Makefile"
+          echo "::endgroup::"
+          rm temp.tar.gz
+
+      - name: Commit and push changes
+        uses: docker://ghcr.io/xaemiphor/git-push:main
+        env:
+          commit_message: "ci: Commit ${{ github.sha }} updated ${{ matrix.package }} from ${{ steps.vars.outputs.PKG_VERSION }} to ${{ steps.vars.outputs.GH_VERSION }}"
+          commit_glob: |
+            ${{ matrix.package }}/Makefile
+
