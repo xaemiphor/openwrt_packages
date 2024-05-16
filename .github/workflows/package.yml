@@ -244,7 +244,8 @@ jobs:
           echo "::endgroup::"
           echo "::group::Sign Packages"
           usign -S -m Packages -s "${GITHUB_WORKSPACE}/usign.priv.key"
-          rm "${GITHUB_WORKSPACE}/*.key"
+          cp ${GITHUB_WORKSPACE}/usign.pub.key ${GITHUB_WORKSPACE}/packages/$(usign -F -p ${GITHUB_WORKSPACE}/usign.pub.key)
+          rm ${GITHUB_WORKSPACE}/*.key
           echo "::endgroup::"
           cd ${GITHUB_WORKSPACE}
           rm -R "${GITHUB_WORKSPACE}/opkg-utils"
