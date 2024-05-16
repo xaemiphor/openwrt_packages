@@ -207,15 +207,44 @@ jobs:
           zipBall: false
           out-file-path: packages
 
-      - name: Generate repository meta
+      - name: Cache usign source
+        id: cache-usign-source
+        uses: actions/cache@v4
+        with:
+          path: "${{ github.workspace }}/usign"
+          key: "openwrt-usign"
+
+      - name: Install usign
         shell: bash
         run: |
+          if [[ "${{ steps.cache-usign-source.outputs.cache-hit }}" != "true" ]]; then
+            git clone https://git.openwrt.org/project/usign.git
+          fi
+          cd usign/
+          cmake .
+          make
+          sudo make install
+
+      - name: Generate repository meta
+        env:
+          USIGN_KEY: ${{ secrets.USIGN_KEY }}
+          USIGN_PUB: ${{ secrets.USIGN_PUB }}
+        shell: bash
+        run: |
+          echo "::group::Prep keys"
+          echo "$USIGN_KEY" | base64 --decode > usign.priv.key
+          echo "$USIGN_PUB" | base64 --decode > usign.pub.key
+          echo "::endgroup::"
           git clone --depth 1 git://git.yoctoproject.org/opkg-utils ${GITHUB_WORKSPACE}/opkg-utils
           cd packages
           echo "::group::Generate index"
           ${GITHUB_WORKSPACE}/opkg-utils/opkg-make-index . | awk '!/Lost field/' > "Packages"
           gzip --keep Packages
           rm Packages.stamps
+          echo "::endgroup::"
+          echo "::group::Sign Packages"
+          usign -S -m Packages -s "${GITHUB_WORKSPACE}/usign.priv.key"
+          rm "${GITHUB_WORKSPACE}/*.key"
           echo "::endgroup::"
           cd ${GITHUB_WORKSPACE}
           rm -R "${GITHUB_WORKSPACE}/opkg-utils"
