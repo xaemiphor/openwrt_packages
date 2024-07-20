@@ -17,6 +17,7 @@ jobs:
           - x86-64
         version:
           - 23.05.3
+          - 23.05.4
     steps:
       - name: Install golang
         uses: actions/setup-go@v5
