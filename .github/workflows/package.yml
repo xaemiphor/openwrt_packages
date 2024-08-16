@@ -73,38 +73,8 @@ jobs:
           tar --strip-components=1 -Jxf "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}" "${SDK_PACKAGE_NAME%.*.*}/"
           echo "src-git kuoruan https://github.com/kuoruan/openwrt-upx.git" >> feeds.conf.default
 
-      - name: Cache feed - base
-        id: cache-feed-base
-        uses: actions/cache@v4
-        with:
-          path: "${{ github.workspace }}/sdk/feeds/base"
-          key: "${{ steps.vars.outputs.SDK_PACKAGE_NAME }}-feeds-base"
-      - name: Cache feed - packages
-        id: cache-feed-packages
-        uses: actions/cache@v4
-        with:
-          path: "${{ github.workspace }}/sdk/feeds/packages"
-          key: "${{ steps.vars.outputs.SDK_PACKAGE_NAME }}-feeds-packages"
-      - name: Cache feed - luci
-        id: cache-feed-luci
-        uses: actions/cache@v4
-        with:
-          path: "${{ github.workspace }}/sdk/feeds/luci"
-          key: "${{ steps.vars.outputs.SDK_PACKAGE_NAME }}-feeds-luci"
-      - name: Cache feed - routing
-        id: cache-feed-routing
-        uses: actions/cache@v4
-        with:
-          path: "${{ github.workspace }}/sdk/feeds/routing"
-          key: "${{ steps.vars.outputs.SDK_PACKAGE_NAME }}-feeds-routing"
-      - name: Cache feed - telephony
-        id: cache-feed-telephony
-        uses: actions/cache@v4
-        with:
-          path: "${{ github.workspace }}/sdk/feeds/telephony"
-          key: "${{ steps.vars.outputs.SDK_PACKAGE_NAME }}-feeds-telephony"
-
-      - name: Prep feeds
+      - name: Prep feed config
+        id: feed
         env:
           SDK_TMP: "${{ github.workspace }}/sdk"
           ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
@@ -118,6 +88,54 @@ jobs:
           echo "::group::feeds.conf.default"
           cat feeds.conf.default
           echo "::endgroup::"
+          echo "::group::feed refs"
+          for x in $(awk '/;/||/\^/{print $2}' feeds.conf.default); do
+            ref=$(awk -F '[ ^;]' -v feed=${x} '$2 == feed{print $4}' feeds.conf.default)
+            echo "${x}=${ref}" | tee -a "${GITHUB_OUTPUT}"
+          done
+          echo "::endgroup::"
+
+      - name: Cache feed - base
+        id: cache-feed-base
+        uses: actions/cache@v4
+        with:
+          path: "${{ github.workspace }}/sdk/feeds/base"
+          key: "${{ steps.feed.outputs.base }}-feeds-base"
+      - name: Cache feed - packages
+        id: cache-feed-packages
+        uses: actions/cache@v4
+        with:
+          path: "${{ github.workspace }}/sdk/feeds/packages"
+          key: "${{ steps.feed.outputs.packages }}-feeds-packages"
+      - name: Cache feed - luci
+        id: cache-feed-luci
+        uses: actions/cache@v4
+        with:
+          path: "${{ github.workspace }}/sdk/feeds/luci"
+          key: "${{ steps.feed.outputs.luci }}-feeds-luci"
+      - name: Cache feed - routing
+        id: cache-feed-routing
+        uses: actions/cache@v4
+        with:
+          path: "${{ github.workspace }}/sdk/feeds/routing"
+          key: "${{ steps.feed.outputs.routing }}-feeds-routing"
+      - name: Cache feed - telephony
+        id: cache-feed-telephony
+        uses: actions/cache@v4
+        with:
+          path: "${{ github.workspace }}/sdk/feeds/telephony"
+          key: "${{ steps.feed.outputs.telephony }}-feeds-telephony"
+
+      - name: Prep feeds
+        env:
+          SDK_TMP: "${{ github.workspace }}/sdk"
+          ARTIFACT_DIR: "${{ github.workspace }}/artifacts"
+        shell: bash
+        run: |
+          if [[ ! -d "${ARTIFACT_DIR}" ]]; then
+            mkdir -p "${ARTIFACT_DIR}"
+          fi
+          cd "${SDK_TMP}"
           for x in $(awk '{print $2}' feeds.conf.default); do
             if [[ ! -d "${SDK_TMP}/feeds/${x}" ]]; then
               echo "::group::Updating feed - ${x}"
@@ -170,6 +188,7 @@ jobs:
       matrix:
         version:
           - 23.05.3
+          - 23.05.4
     steps:
       - name: Create tag
         uses: actions/github-script@v7
