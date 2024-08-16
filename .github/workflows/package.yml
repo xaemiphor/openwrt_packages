@@ -17,6 +17,8 @@ jobs:
           - ramips-mt7621
           - x86-64
         version:
+          - 19.07.9
+          - 22.03.7
           - 23.05.3
           - 23.05.4
     steps:
@@ -188,6 +190,8 @@ jobs:
       fail-fast: false
       matrix:
         version:
+          - 19.07.9
+          - 22.03.7
           - 23.05.3
           - 23.05.4
     steps:
