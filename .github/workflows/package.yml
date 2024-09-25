@@ -21,6 +21,7 @@ jobs:
           #- 22.03.7 # Stop trying
           - 23.05.3
           - 23.05.4
+          - 23.05.5
     steps:
       - name: Install golang
         uses: actions/setup-go@v5
