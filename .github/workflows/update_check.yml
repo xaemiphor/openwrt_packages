@@ -1,66 +1,87 @@
 on:
   schedule:
     - cron: "0 0 * * 4"
+  push:
+    paths:
+      - .github/workflows/update_check.yml
 
 jobs:
-  package:
+  update:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # TODO Extract this from Makefiles
-          - package: net/tailscale
-            gh_repo: tailscale/tailscale
-          - package: net/netbird
-            gh_repo: netbirdio/netbird
     steps:
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 1
+          path: packages
 
-      - name: Set variables
-        id: vars
+      - name: Sync from external
         shell: bash
         run: |
-          echo "::group::Dep install"
-          for x in 'curl' 'jq'; do
-            if [[ -z "$(which ${x})" ]]; then
-              apt-get update
-              apt-get install -y ${x}
-            fi
-          done
+          OPWD=$PWD
+          PUSH=0
+          echo "::group::Deps"
+          sudo apt-get -qq update
+          sudo apt-get install -qq -y curl jq wget
           echo "::endgroup::"
-          PKG_VERSION=$(awk -F '[:=]' '/^PKG_VERSION/{print $NF}' "${{ matrix.package }}/Makefile")
-          echo "PKG_VERSION=${PKG_VERSION}" | tee -a "${GITHUB_OUTPUT}"
-          if [[ -n "${{ matrix.gh_repo }}" ]]; then
-            GH_VERSION=$(curl -s "https://api.github.com/repos/${{ matrix.gh_repo }}/releases/latest" | jq -c --raw-output '.tag_name' | tr -d 'v')
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          last='not-a-hash'
+          for package in $(find packages -type f -iname '.git-ref' -exec dirname {} \; | sort); do
+            echo "::group::${package} Sync .git-ref data"
+            entry=$(cat ${package}/.git-ref)
+            repo=${entry%#*}
+            folder=$(echo ${repo} | md5sum - | awk '{print $1}')
+            source=${entry#*#}
+            if [[ "${folder}" != "${last}" && -d "${folder}" ]]; then
+              rm -r ${last}
+            fi
+            if [[ ! -d ${folder} ]]; then
+              git clone --depth 1 --single-branch ${repo} ${folder}
+              last=${folder}
+            fi
+            rsync -av --delete --exclude='.git-ref' ${folder}/${source}/. ${package}/.
+            echo "::endgroup::"
+            echo "::group::${package} Commit changes"
+            upstream_commit=$(cd ${folder} && git log -n 1 --pretty=format:%H -- ${source})
+            cd ${package}
+            if [[ $(git status --porcelain . | wc -l) -gt 0 ]]; then
+              git add .
+              git commit -m "ci: Commit ${{ github.sha }} synced ${package} from ${repo}@${upstream_commit}"
+              PUSH=1
+            fi
+            cd $OPWD
+            echo "::endgroup::"
+          done
+          for package in $(grep -rl 'PKG_SOURCE_URL:=https://codeload.github.com' packages | grep Makefile | xargs dirname); do
+            echo "::group::${package} Check for upstream updates"
+            PKG_VERSION=$(awk -F '[:=]' '/^PKG_VERSION/{print $NF}' "${package}/Makefile")
+            REPO=$(awk -F '[=]' '/^PKG_SOURCE_URL/{print $NF}' "${package}/Makefile" | awk -F '[/]' '{print $4"/"$5}')
+            GH_VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | jq -c --raw-output '.tag_name' | tr -d 'v')
             if [[ -z "${GH_VERSION}" || "${GH_VERSION}" == "null" ]]; then
               GH_VERSION=${PKG_VERSION}
             fi
+            echo "::endgroup::"
+            if [[ "${PKG_VERSION}" != "${GH_VERSION}" ]]; then
+              echo "::group::${package} Updating"
+              wget https://codeload.github.com/${REPO}/tar.gz/v${GH_VERSION} -O temp.tar.gz
+              PKG_HASH=$(sha256sum temp.tar.gz | awk '{print $1}')
+              rm temp.tar.gz
+              sed -i 's/^PKG_VERSION:=.*/PKG_VERSION:=${GH_VERSION}/g' "${package}/Makefile"
+              sed -i "s/^PKG_HASH:=.*/PKG_HASH:=${PKG_HASH}/g" "${package}/Makefile"
+              echo "::endgroup::"
+              echo "::group::${package} Commiting"
+              cd ${package}
+              if [[ $(git status --porcelain . | wc -l) -gt 0 ]]; then
+                git add .
+                git commit -m "ci: Commit ${{ github.sha }} updated ${package} from ${PKG_VERSION} to ${GH_VERSION}"
+                PUSH=1
+              fi
+              cd $OPWD
+              echo "::endgroup::"
+            fi
+          done
+          if [[ $PUSH -eq 1 ]]; then
+            cd packages
+            git push -u origin "$(git branch --show-current):$(git branch --show-current)"
           fi
-          echo "GH_VERSION=${GH_VERSION}" | tee -a "${GITHUB_OUTPUT}"
-
-      - name: Update version
-        if: steps.vars.outputs.PKG_VERSION != steps.vars.outputs.GH_VERSION
-        shell: bash
-        run: |
-          echo "::group::Grabbing payload"
-          wget https://codeload.github.com/${{ matrix.gh_repo }}/tar.gz/v${{ steps.vars.outputs.GH_VERSION }} -O temp.tar.gz
-          echo "::endgroup::"
-          echo "::group::Updating Makefile"
-          PKG_HASH=$(sha256sum temp.tar.gz | awk '{print $1}')
-          sed -i 's/^PKG_VERSION:=.*/PKG_VERSION:=${{ steps.vars.outputs.GH_VERSION }}/g' "${{ matrix.package }}/Makefile"
-          sed -i "s/^PKG_HASH:=.*/PKG_HASH:=${PKG_HASH}/g" "${{ matrix.package }}/Makefile"
-          echo "::endgroup::"
-          echo "::group::Makefile contents ${{ matrix.package }}"
-          cat "${{ matrix.package }}/Makefile"
-          echo "::endgroup::"
-          rm temp.tar.gz
-
-      - name: Commit and push changes
-        uses: docker://ghcr.io/xaemiphor/git-push:main
-        env:
-          commit_message: "ci: Commit ${{ github.sha }} updated ${{ matrix.package }} from ${{ steps.vars.outputs.PKG_VERSION }} to ${{ steps.vars.outputs.GH_VERSION }}"
-          commit_glob: |
-            ${{ matrix.package }}/Makefile
-
