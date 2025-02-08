@@ -69,13 +69,13 @@ jobs:
         run: |
           echo "::group:: Update/install packages"
           sudo apt-get update
-          sudo apt-get install -y rsync
+          sudo apt-get install -y rsync zstd
           echo "::endgroup::"
           #set -x
           mkdir ${SDK_TMP}
           cd ${SDK_TMP}
           file "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}"
-          tar --strip-components=1 -Jxf "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}" "${SDK_PACKAGE_NAME%.*.*}/"
+          tar --strip-components=1 -xf "${GITHUB_WORKSPACE}/${SDK_PACKAGE_NAME}" "${SDK_PACKAGE_NAME%.*.*}/"
           echo "src-git kuoruan https://github.com/kuoruan/openwrt-upx.git" >> feeds.conf.default
 
       - name: Prep feed config
