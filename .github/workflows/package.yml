@@ -168,6 +168,10 @@ jobs:
           find package/feeds/${{ github.repository_owner }} -mindepth 1 -maxdepth 1 -type d -follow
           echo "::endgroup::"
           for x in $(find package/feeds/${{ github.repository_owner }} -mindepth 1 -maxdepth 1 -type d -follow); do
+            if [[ -e ${x}/.skip ]]; then
+              echo "Found .skip file, skipping ${x}"
+              continue
+            fi
             #make package/${{matrix.package}}/compile V=s
             echo "::group:: Ensuring ${x} is clean"
             make ${x}/clean V=s
