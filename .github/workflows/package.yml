@@ -200,6 +200,7 @@ jobs:
           - 23.05.3
           - 23.05.4
           - 23.05.5
+          - 24.10.0
     steps:
       - name: Create tag
         uses: actions/github-script@v7
