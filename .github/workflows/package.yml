@@ -89,7 +89,7 @@ jobs:
             mkdir -p "${ARTIFACT_DIR}"
           fi
           cd "${SDK_TMP}"
-          echo "src-git ${{ github.repository_owner }} ${{ github.repositoryUrl }}" | sed 's#git://#https://#g' >> feeds.conf.default
+          echo "src-git ${{ github.repository_owner }} ${{ github.repositoryUrl }}" | sed 's#git://#https://#g' | cat - feeds.conf.default > feeds.conf.temp && mv feeds.conf.temp feeds.conf.default
           echo "::group::feeds.conf.default"
           cat feeds.conf.default
           echo "::endgroup::"
@@ -142,11 +142,11 @@ jobs:
           fi
           cd "${SDK_TMP}"
           for x in $(awk '{print $2}' feeds.conf.default); do
-            if [[ ! -d "${SDK_TMP}/feeds/${x}" ]]; then
-              echo "::group::Updating feed - ${x}"
-              ./scripts/feeds update ${x}
-              echo "::endgroup::"
-            fi
+            #if [[ ! -d "${SDK_TMP}/feeds/${x}" ]]; then
+            echo "::group::Updating feed - ${x}"
+            ./scripts/feeds update ${x}
+            echo "::endgroup::"
+            #fi
           done
 
       - name: Build packages
