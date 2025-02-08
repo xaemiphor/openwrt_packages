@@ -169,6 +169,9 @@ jobs:
           echo "::endgroup::"
           for x in $(find package/feeds/${{ github.repository_owner }} -mindepth 1 -maxdepth 1 -type d -follow); do
             #make package/${{matrix.package}}/compile V=s
+            echo "::group:: Ensuring ${x} is clean"
+            make ${x}/clean V=s
+            echo "::endgroup::"
             echo "::group:: Compiling ${x}"
             make ${x}/compile V=s
             echo "::endgroup::"
