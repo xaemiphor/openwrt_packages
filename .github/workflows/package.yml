@@ -179,9 +179,12 @@ jobs:
             echo "::group:: Compiling ${x}"
             make ${x}/compile V=s
             echo "::endgroup::"
+            echo "::group:: /bin/packages"
+            find "${SDK_TMP}/bin/packages" -name *.ipk -exec cp -n {} ${ARTIFACT_DIR} \;
+            echo "::endgroup::"
           done
-          echo "::group:: /bin/packages"
-          find "${SDK_TMP}/bin/packages" -name *.ipk -exec cp -n {} ${ARTIFACT_DIR} \;
+          echo "::group::Identifying artifacts"
+          find ${ARTIFACT_DIR} -type f
           echo "::endgroup::"
 
       - uses: actions/upload-artifact@v4
