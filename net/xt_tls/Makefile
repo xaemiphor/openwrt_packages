@@ -19,12 +19,12 @@ PKG_LICENSE_FILES=LICENSE
 
 include $(INCLUDE_DIR)/package.mk
 
-ifeq ($(CONFIG_TARGET_bcm27xx),y)
-  $(info Building for bcm27xx target)
-  TARGET_CFLAGS += -Wno-implicit-fallthrough
-  HOST_CFLAGS += -Wno-implicit-fallthrough
-  #TARGET_CFLAGS += -Werror=implicit-fallthrough
-endif
+#ifeq ($(CONFIG_TARGET_bcm27xx),y)
+#  $(info Building for bcm27xx target)
+#  TARGET_CFLAGS += -Wno-implicit-fallthrough
+#  HOST_CFLAGS += -Wno-implicit-fallthrough
+#  #TARGET_CFLAGS += -Werror=implicit-fallthrough
+#endif
 
 # Package definition; instructs on how and where our package will appear in the overall configuration menu ('make menuconfig')
 define Package/ipt-xt_tls
