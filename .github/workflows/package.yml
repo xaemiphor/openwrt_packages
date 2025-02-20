@@ -1,30 +1,46 @@
 on:
-  schedule:
-    - cron: "0 0 * * 5"
   workflow_dispatch:
-  push:
+    inputs:
+      version:
+        description: 'OpenWRT Version to build all packages for'
+        required: false
+  repository_dispatch:
+    types:
+      - package
+
+env:
+  version: ${{ github.event.client_payload.version || github.event.inputs.version || '24.10.0' }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.client_payload.version || github.event.inputs.version || '24.10.0' }}
+  cancel-in-progress: false
 
 jobs:
+  info:
+    runs-on: ubuntu-latest
+    outputs:
+      targets: "${{ steps.info.outputs.targets }}"
+      #packages: "${{ steps.info.outputs.packages }}"
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 1
+      - id: info
+        shell: bash
+        run: |
+          TARGETS=$(yq -o json '.' .github/config/targets.yaml | jq -c -r '.[] | (.cpu + "-" + .platform)')
+          echo "targets=${TARGETS}" | tee -a ${GITHUB_OUTPUT}
+          #PACKAGES=$()
+          #echo "packages=" | tee -a ${GITHUB_OUTPUT}
+
   package:
     runs-on: ubuntu-latest
+    needs: info
     strategy:
       fail-fast: false
       matrix:
-        cpu:
-          - ath79-generic
-          #- bcm27xx-bcm2708
-          - bcm27xx-bcm2710
-          - bcm27xx-bcm2711
-          - mvebu-cortexa9
-          - ramips-mt7621
-          - x86-64
-        version:
-          #- 19.07.9 # Requires python2
-          #- 22.03.7 # Stop trying
-          - 23.05.3
-          - 23.05.4
-          - 23.05.5
-          - 24.10.0
+        target: ${{ fromJSON(needs.info.outputs.targets) }}
     steps:
       - name: Install golang
         uses: actions/setup-go@v5
@@ -35,8 +51,8 @@ jobs:
       - name: vars
         id: vars
         env:
-          CPU: ${{ matrix.cpu }}
-          OPENWRT_VERSION: ${{ matrix.version }}
+          CPU: ${{ matrix.target }}
+          OPENWRT_VERSION: ${{ env.version }}
         shell: bash
         run: |
           SDK_FILENAME=$(curl -s https://downloads.openwrt.org/releases/${{ env.OPENWRT_VERSION }}/targets/${CPU/-/\/}/ | awk '/-sdk-${{ env.OPENWRT_VERSION }}/' | sed -r 's/.*href="([^"]+).*/\1/g' )
@@ -181,7 +197,7 @@ jobs:
             echo "::group:: Compiling ${x}"
             make ${x}/compile V=s
             echo "::endgroup::"
-            echo "::group:: /bin/packages"
+            echo "::group:: find+cp /bin/packages"
             find "${SDK_TMP}/bin/packages" -name *.ipk -exec cp -n {} ${ARTIFACT_DIR} \;
             echo "::endgroup::"
           done
@@ -191,7 +207,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.version }}-${{ matrix.cpu }}
+          name: ${{ env.version }}-${{ matrix.target }}
           path: "${{ github.workspace }}/artifacts"
           retention-days: 1
 
@@ -202,14 +218,6 @@ jobs:
       contents: write
     strategy:
       fail-fast: false
-      matrix:
-        version:
-          #- 19.07.9 # Requires python2
-          #- 22.03.7 # Stop trying
-          - 23.05.3
-          - 23.05.4
-          - 23.05.5
-          - 24.10.0
     steps:
       - name: Create tag
         uses: actions/github-script@v7
@@ -218,7 +226,7 @@ jobs:
             github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              ref: 'refs/tags/${{ matrix.version }}',
+              ref: 'refs/tags/${{ env.version }}',
               sha: context.sha
             }).catch(err => {
               console.log(err)
@@ -226,7 +234,7 @@ jobs:
               github.rest.git.updateRef({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                ref: 'tags/${{ matrix.version }}',
+                ref: 'tags/${{ env.version }}',
                 sha: context.sha
               });
             })
@@ -235,14 +243,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: packages
-          pattern: ${{ matrix.version }}-*
+          pattern: ${{ env.version }}-*
           merge-multiple: true
 
       - name: Download all existing release assets
         if: false
         uses: robinraju/release-downloader@v1.10
         with:
-          tag: ${{ matrix.version }}
+          tag: ${{ env.version }}
           fileName: '*.ipk'
           tarBall: false
           zipBall: false
@@ -298,5 +306,5 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ matrix.version }}
+          tag_name: ${{ env.version }}
           files: packages/*

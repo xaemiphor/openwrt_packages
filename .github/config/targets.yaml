@@ -1,0 +1,6 @@
+- { cpu: "ath79", platform: "generic" }
+- { cpu: "bcm27xx", platform: "bcm2710" }
+- { cpu: "bcm27xx", platform: "bcm2711" }
+- { cpu: "mvebu", platform: "cortexa9" }
+- { cpu: "ramips", platform: "mt7621" }
+- { cpu: "x86", platform: "64" }
