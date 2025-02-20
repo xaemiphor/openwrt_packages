@@ -29,7 +29,7 @@ jobs:
       - id: info
         shell: bash
         run: |
-          TARGETS=$(yq -o json '.' .github/config/targets.yaml | jq -c -r '.[] | (.cpu + "-" + .platform)')
+          TARGETS=$(yq -o json '.' .github/config/targets.yaml | jq -c -r '[.[] | (.cpu + "-" + .platform)]')
           echo "targets=${TARGETS}" | tee -a ${GITHUB_OUTPUT}
           #PACKAGES=$()
           #echo "packages=" | tee -a ${GITHUB_OUTPUT}
