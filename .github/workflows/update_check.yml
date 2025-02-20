@@ -76,7 +76,7 @@ jobs:
             echo "::endgroup::"
             if [[ "${PKG_VERSION}" != "${GH_VERSION}" ]]; then
               echo "::group::${package} Updating"
-              wget https://codeload.github.com/${REPO}/tar.gz/v${GH_VERSION} -O temp.tar.gz
+              wget -q https://codeload.github.com/${REPO}/tar.gz/v${GH_VERSION} -O temp.tar.gz
               PKG_HASH=$(sha256sum temp.tar.gz | awk '{print $1}')
               rm temp.tar.gz
               sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${GH_VERSION}/g" "${package}/Makefile"
