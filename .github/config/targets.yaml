@@ -3,4 +3,5 @@
 - { cpu: "bcm27xx", platform: "bcm2711" }
 - { cpu: "mvebu", platform: "cortexa9" }
 - { cpu: "ramips", platform: "mt7621" }
+- { cpu: "sunxi", platform: "cortexa7" }
 - { cpu: "x86", platform: "64" }
