@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - .github/workflows/update_check.yml
+      - .github/config/*
 
 jobs:
   update:
