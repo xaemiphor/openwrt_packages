@@ -53,7 +53,7 @@ jobs:
               git clone --depth 1 --single-branch ${repo} ${folder}
               last=${folder}
             fi
-            rsync -av --delete --exclude='.git-ref' ${folder}/${source}/. ${package}/.
+            rsync -av --delete --exclude='.git-ref' --exclude='.git' ${folder}/${source}/. ${package}/.
             echo "::endgroup::"
             echo "::group::${package} Commit changes"
             upstream_commit=$(cd ${folder} && git log -n 1 --pretty=format:%H -- ${source})
